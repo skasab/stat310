@@ -1,0 +1,69 @@
+---
+title: "ScratchWork"
+author: "Solly Kasab"
+date: "12/13/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r loadlibs, echo=T, results='hide', message=F, warning=F}
+library(tidyverse)
+library(plotly)
+library(RColorBrewer)
+```
+
+```{r loadClean, include=FALSE}
+original <- read_csv("data/countypres_2000-2016.csv")
+others2000 <- original %>% 
+        filter(year == 2000, candidate %in% c("Ralph Nader", "Other")) %>% 
+        group_by(FIPS) %>% 
+        mutate(candidatevotes = sum(candidatevotes)) %>% 
+        filter(candidate == "Other")
+data <- original %>%
+        filter((year != 2000 | candidate != "Other")) %>%
+        bind_rows(others2000) %>%
+        filter(candidate != "Ralph Nader")
+data <- data %>% 
+        drop_na(FIPS) %>%
+        replace_na(list(party = "other",candidatevotes = 0)) %>%
+        filter(totalvotes != 0) %>%
+        filter(state != "Alaska") %>%
+        mutate(fips5 = sprintf("%05d",FIPS)) %>%
+        select(-version,office) %>% 
+        mutate(percent = candidatevotes/totalvotes) %>%
+        arrange(year,state,FIPS)
+```
+
+```{r scratchMargins}
+getPrior <- function(theYear,theParty,theFips) {
+    returnValue <- filter(data,year == theYear - 4, party == theParty, FIPS == theFips)
+    if(nrow(returnValue) == 0) {
+        tmp <- filter(data,year == theYear, party == theParty, FIPS == theFips)
+        return(tmp$percent)
+    }
+    return(returnValue$percent)
+}
+
+pipe_print = function(data) {print(data); data}
+
+margins3 <- data %>%
+    filter(year != 2000) %>%
+    mutate(tmp = pmap(list(year,party,FIPS),getPrior)) %>%
+    mutate(priorPercent = flatten_dbl(tmp)) %>%
+    select(-tmp)
+    
+# test2 <- margins2 %>%
+#     mutate(priorPercent = case_when(
+#         length(priorPercent) == 0 ~ percent,
+#         TRUE ~ priorPercent))
+#     mutate(priorPercent = flatten_dbl(priorPercent))
+# 
+# margins2$priorPercent     
+    
+```
+
+
+

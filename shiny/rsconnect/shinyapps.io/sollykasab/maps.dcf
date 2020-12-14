@@ -1,0 +1,13 @@
+name: maps
+title: maps
+username:
+account: sollykasab
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 3393739
+bundleId: 3985228
+url: https://sollykasab.shinyapps.io/maps/
+when: 1607916374.89006
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: ScratchWork.Rmd|data/County Presidential Returns 2000-2016.md
