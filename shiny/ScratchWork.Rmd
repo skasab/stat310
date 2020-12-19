@@ -49,20 +49,11 @@ getPrior <- function(theYear,theParty,theFips) {
 
 pipe_print = function(data) {print(data); data}
 
-margins3 <- data %>%
+margins <- data %>%
     filter(year != 2000) %>%
     mutate(tmp = pmap(list(year,party,FIPS),getPrior)) %>%
     mutate(priorPercent = flatten_dbl(tmp)) %>%
     select(-tmp)
-    
-# test2 <- margins2 %>%
-#     mutate(priorPercent = case_when(
-#         length(priorPercent) == 0 ~ percent,
-#         TRUE ~ priorPercent))
-#     mutate(priorPercent = flatten_dbl(priorPercent))
-# 
-# margins2$priorPercent     
-    
 ```
 
 

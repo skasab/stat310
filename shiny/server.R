@@ -2,6 +2,7 @@ library(shiny)
 library(tidyverse)
 library(plotly)
 library(rjson)
+library(DT)
 
 shinyServer(function(input, output, session) {
 
@@ -97,9 +98,6 @@ shinyServer(function(input, output, session) {
         }
         
         candidates$other <- "Other"
-        # print(candidates$democrat)
-        # print(candidates$republican)
-        # print(candidates$other)
     })
     
     stylings <- reactiveValues(colorScale = NULL, colorScaleTitle = NULL, plotTitle = NULL, reverse = NULL)
@@ -132,7 +130,7 @@ shinyServer(function(input, output, session) {
         }
         else if(input$party == "both") {
             stylings$colorScale <- "Bluered"
-            stylings$colorScaleTitle <- "Two-Party Vote<br>(Scale: 1 = More Republican, 0 = More Democratic)"
+            stylings$colorScaleTitle <- "Two-Party Vote<br>Scale: 1 = More Republican, <br>0 = More Democratic)"
             stylings$plotTitle <- paste(input$year,"Presidential Election")
             stylings$reverse <-  FALSE
         }
@@ -149,15 +147,10 @@ shinyServer(function(input, output, session) {
             }
             if(input$party == "both") {
                 stylings$colorScale <- "Picnic"
-                stylings$colorScaleTitle <- "Two-Party Vote<br>(Scale: (+) = More Republican, (-) = More Democratic)"
+                stylings$colorScaleTitle <- "Two-Party Vote<br>(Scale: (+) = More Republican, <br> (-) = More Democratic)"
                 stylings$reverse <-  FALSE
             }
         }
-
-        # print(stylings$colorScale)
-        # print(stylings$colorScaleTitle)
-        # print(stylings$plotTitle)
-        # print(stylings$reverse)
     })
     
     output$table <- renderTable(dataFiltered())
@@ -169,6 +162,9 @@ shinyServer(function(input, output, session) {
             group_by(input$year, state, FIPS, fips5) %>% 
             mutate(tmp1 = sum(candidatevotes),tmp2 = tmp1 - candidatevotes, oppPercent = tmp2 / totalvotes) %>%
             select(-tmp1,tmp2)
+        
+        plotdata <- plotdata %>%
+            mutate(percent = percent*100, oppPercent = oppPercent*100)
         
         usaConfig <- list(
             scope = 'usa',
@@ -183,35 +179,29 @@ shinyServer(function(input, output, session) {
                 locations=plotdata$fips5,
                 z=plotdata$percent,
                 hoverinfo = 'text',
-                # text = paste0(plotdata$county, " County<br>",
-                #               round(plotdata$percent * 100),"% ",
-                #               case_when(
-                #                   input$party == "democrat" ~ candidates$democrat,
-                #                   input$party == "republican" ~ candidates$republican,
-                #                   input$party == "other" ~ candidates$other,
-                #                   input$party == "both" ~ paste0(candidates$republican,"<br>",round(plotdata$oppPercent * 100),"%",candidates$democrat))),
-                # 
                 text = {
-                    base <- paste0(plotdata$county, " County<br>",round(plotdata$percent * 100),"% ")
+                    base <- paste0(plotdata$county, " County<br>",round(plotdata$percent),"% ")
                     
                     case_when(
                         input$party == "democrat" ~ paste0(base,candidates$democrat),
                         input$party == "republican" ~ paste0(base,candidates$republican),
                         input$party == "other" ~ paste0(base,candidates$other),
                         input$party == "both" ~ case_when(
-                            plotdata$oppPercent > plotdata$percent ~ paste0(plotdata$county, " County<br>",round(plotdata$oppPercent * 100),"% ",candidates$democrat,"<br>",round(plotdata$percent * 100),"% ",candidates$republican),
-                            TRUE ~ paste0(base,candidates$republican,"<br>",round(plotdata$oppPercent * 100),"% ",candidates$democrat)))
+                            plotdata$oppPercent > plotdata$percent ~ paste0(plotdata$county, " County<br>",round(plotdata$oppPercent),"% ",candidates$democrat,"<br>",round(plotdata$percent),"% ",candidates$republican),
+                            TRUE ~ paste0(base,candidates$republican,"<br>",round(plotdata$oppPercent),"% ",candidates$democrat)))
                 },
                 zmin=0,
-                zmid=.5,
-                zmax=1,
+                zmid=50,
+                zmax=100,
                 colorscale = stylings$colorScale,
                 reversescale = stylings$reverse,
                 marker=list(line=list(
                     width=.1,
                     color="#111111")
                 )) %>%
-            colorbar(title = stylings$colorScaleTitle) %>%
+            colorbar(
+                title = stylings$colorScaleTitle,
+                ticksuffix = "%") %>%
             layout(title = stylings$plotTitle) %>%
             layout(geo = usaConfig)
         
@@ -221,7 +211,8 @@ shinyServer(function(input, output, session) {
     getMarginPlot <- function() {
         plotdata <- marginsFiltered()
     
-        plotdata <- plotdata %>% 
+        plotdata <- plotdata %>%
+            mutate(percent = percent*100, priorPercent = priorPercent*100) %>% 
             mutate(marginShift = percent - priorPercent)
                 
         usaConfig <- list(
@@ -237,16 +228,8 @@ shinyServer(function(input, output, session) {
                 locations=plotdata$fips5,
                 z=plotdata$marginShift,
                 hoverinfo = 'text',
-                # text = paste0(plotdata$county, " County<br>",
-                #               round(plotdata$percent * 100),"% ",
-                #               case_when(
-                #                   input$party == "democrat" ~ candidates$democrat,
-                #                   input$party == "republican" ~ candidates$republican,
-                #                   input$party == "other" ~ candidates$other,
-                #                   input$party == "both" ~ paste0(candidates$republican,"<br>",round(plotdata$oppPercent * 100),"%",candidates$democrat))),
-                # 
                 text = {
-                    base <- paste0(plotdata$county, " County<br>",abs(round(plotdata$marginShift * 100)),"% ")
+                    base <- paste0(plotdata$county, " County<br>",abs(round(plotdata$marginShift)),"% ")
                     
                     case_when(
                         input$party == "democrat" ~ case_when(
@@ -262,26 +245,47 @@ shinyServer(function(input, output, session) {
                             plotdata$marginShift >= 0 ~ paste0(base,"towards the Republican (",candidates$republican,") since ", (input$year - 4)),
                             plotdata$marginShift < 0 ~ paste0(base,"towards the Democrat (",candidates$democrat,") since ", (input$year - 4))))
                 },
-                zmin=--1,
+                zmin=--100,
                 zmid=0,
-                zmax=1,
+                zmax=100,
                 colorscale = stylings$colorScale,
                 reversescale = stylings$reverse,
                 marker=list(line=list(
                     width=.1,
                     color="#111111")
                 )) %>%
-            colorbar(title = stylings$colorScaleTitle) %>%
+            colorbar(
+                title = stylings$colorScaleTitle,
+                ticksuffix = "%") %>%
             layout(title = stylings$plotTitle) %>%
             layout(geo = usaConfig)
         
         return(fig)
     }
     
+    get2000Plot <- function() {
+        nothing <- theme(axis.line=element_blank(),axis.text.x=element_blank(),
+              axis.text.y=element_blank(),axis.ticks=element_blank(),
+              axis.title.x=element_blank(),
+              axis.title.y=element_blank(),legend.position="none",
+              panel.background=element_blank(),panel.border=element_blank(),panel.grid.major=element_blank(),
+              panel.grid.minor=element_blank(),plot.background=element_blank())
+        
+        msg <- ggplot(data = NULL) + 
+            annotate("text", 
+                     x = 1, 
+                     y = 1, 
+                     label = "Please pick a non-2000 year \nfor margin shift visualization.", 
+                     size = 6) + 
+            nothing
+        
+        return(ggplotly(msg))
+    }
+    
     thePlot <- eventReactive(input$go, {
         if(input$shift) {
             if(input$year == 2000) {
-                
+                return(get2000Plot())
             }
             else {
                 return(getMarginPlot())
@@ -295,6 +299,26 @@ shinyServer(function(input, output, session) {
     output$plot <- renderPlotly({
         thePlot()
     })    
+    
+    output$counties <- renderDT({
+        dataTable <- dataFiltered()
+        dataTable <- dataTable %>% 
+            select(-office,-fips5,-FIPS,-state_po) %>%
+            mutate(percent = round(percent * 100,1)) %>%
+            mutate(candidatevotes = format(candidatevotes, big.mark = ","),
+                   totalvotes = format(totalvotes, big.mark = ",")) %>%
+            rename(Year = year,
+                   State = state,
+                   County = county,
+                   Candidate = candidate,
+                   Party = party,
+                   Votes = candidatevotes,
+                   `Total Votes` = totalvotes,
+                   Percentage = percent)
+        dataTable <- DT::datatable(dataTable, options = list(orderClasses = TRUE))
+        
+        return(dataTable)
+    })
 
 
 })
